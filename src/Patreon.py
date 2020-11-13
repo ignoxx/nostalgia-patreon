@@ -1,13 +1,13 @@
 import configparser
-from datetime import datetime
+from datetime import datetime, timedelta
 from time import sleep
 
 import patreon
 
 from src.PatreonResponse import PatreonResponse
 
-FILE_OUTPUT = "patrons.ini"  # path
-UPDATE_FREQUENCY = 30 * 60  # every 30 minutes
+FILE_OUTPUT = "patrons.ini" # path "C:/Users/admin/AppData/Local/SL2_server0/server_data/patrons.ini"
+UPDATE_FREQUENCY = 30   # every 30 minutes
 
 
 class Patreon:
@@ -21,6 +21,7 @@ class Patreon:
     def loop(self):
         while True:
             self.write_ini()
+            print(f"Fetched! Next refresh in {UPDATE_FREQUENCY/60} minutes ({datetime.now() + timedelta(seconds=UPDATE_FREQUENCY)})")
             sleep(UPDATE_FREQUENCY)
 
     def get_all_active_patrons(self):
@@ -94,6 +95,12 @@ class Patreon:
                         "amount_cents"
                     )
 
+                    full_name = pledge.relationship("reward").attribute(
+                        "full_name"
+                    )
+
+                    print(pledge.relationships()["reward"])
+
                 mail = pledge.relationship("patron").attribute("email")
                 username = mail.split("@")[0]
 
@@ -104,8 +111,12 @@ class Patreon:
                             username=username, mail=mail, reward_tier=reward_tier
                         )
                     )
+                else:
+                    print(f"not added: {mail} - {reward_tier}")
+                    #print(pledge.__dict__)
 
             return patreon_list
 
         except Exception as e:
+            print(e)
             return []
