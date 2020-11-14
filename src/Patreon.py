@@ -1,13 +1,14 @@
 import configparser
 from datetime import datetime, timedelta
+from pprint import pprint
 from time import sleep
 
 import patreon
 
 from src.PatreonResponse import PatreonResponse
 
-FILE_OUTPUT = "patrons.ini" # path "C:/Users/admin/AppData/Local/SL2_server0/server_data/patrons.ini"
-UPDATE_FREQUENCY = 30   # every 30 minutes
+FILE_OUTPUT = "patrons.ini"  # path "C:/Users/admin/AppData/Local/SL2_server0/server_data/patrons.ini"
+UPDATE_FREQUENCY = 30  # every 30 minutes
 
 
 class Patreon:
@@ -15,13 +16,16 @@ class Patreon:
         self.api_client = patreon.API(access_token)
         self.campaign_response = self.api_client.fetch_campaign()
         self.campaign_id = self.campaign_response.data()[0].id()
+        print("campaign id: " + self.campaign_id)
         self.last_refresh = datetime.now()
         self.patrons = []
 
     def loop(self):
         while True:
             self.write_ini()
-            print(f"Fetched! Next refresh in {UPDATE_FREQUENCY/60} minutes ({datetime.now() + timedelta(seconds=UPDATE_FREQUENCY)})")
+            print(
+                f"Fetched! Next refresh in {UPDATE_FREQUENCY/60} minutes ({datetime.now() + timedelta(seconds=UPDATE_FREQUENCY)})"
+            )
             sleep(UPDATE_FREQUENCY)
 
     def get_all_active_patrons(self):
@@ -67,14 +71,6 @@ class Patreon:
                     self.campaign_id,
                     50,
                     cursor=cursor,
-                    fields={
-                        "pledge": [
-                            "total_historical_amount_cents",
-                            "declined_since",
-                            "is_paused",
-                            "currently_entitled_tiers",
-                        ]
-                    },
                 )
                 cursor = self.api_client.extract_cursor(pledges_response)
                 all_pledges += pledges_response.data()
@@ -84,24 +80,11 @@ class Patreon:
             # fetch all patreons
             patreon_list = []
             for pledge in all_pledges:
-                declined = (
-                    pledge.attribute("declined_since")
-                    or pledge.attribute("is_paused") == "true"
-                )
-                reward_tier = 0
 
-                if pledge.relationships()["reward"]["data"]:
-                    reward_tier = pledge.relationship("reward").attribute(
-                        "amount_cents"
-                    )
-
-                    full_name = pledge.relationship("reward").attribute(
-                        "full_name"
-                    )
-
-                    print(pledge.relationships()["reward"])
-
+                declined = pledge.attribute("declined_since") != None
+                reward_tier = pledge.attribute("amount_cents")
                 mail = pledge.relationship("patron").attribute("email")
+                full_name = pledge.relationship("patron").attribute("full_name")
                 username = mail.split("@")[0]
 
                 # collect only valid patrons
@@ -113,10 +96,8 @@ class Patreon:
                     )
                 else:
                     print(f"not added: {mail} - {reward_tier}")
-                    #print(pledge.__dict__)
 
             return patreon_list
 
         except Exception as e:
-            print(e)
             return []
