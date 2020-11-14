@@ -8,7 +8,7 @@ import patreon
 from src.PatreonResponse import PatreonResponse
 
 FILE_OUTPUT = "patrons.ini"  # path "C:/Users/admin/AppData/Local/SL2_server0/server_data/patrons.ini"
-UPDATE_FREQUENCY = 30  # every 30 minutes
+UPDATE_FREQUENCY = 1 * 60  # every 1 minute(s)
 
 
 class Patreon:
@@ -22,7 +22,7 @@ class Patreon:
 
     def loop(self):
         while True:
-            self.write_ini()
+            self.update_patrons_ini()
             print(
                 f"Fetched! Next refresh in {UPDATE_FREQUENCY/60} minutes ({datetime.now() + timedelta(seconds=UPDATE_FREQUENCY)})"
             )
@@ -41,21 +41,47 @@ class Patreon:
         self.patrons = self.get_patreons()
         self.last_refresh = datetime.now()
 
-    def write_ini(self):
-        patrons = self.get_all_active_patrons()
-
-        if not patrons:
-            return
-
-        section = "EMAIL"
-
+    def update_patrons_ini(self):
+        patreons = self.get_all_active_patrons()
+        # first read current config
         config = configparser.ConfigParser()
-        config.add_section(section)
-        for p in patrons:
-            config.set(section, p.mail, str(p.reward_tier))
+        result = config.read(FILE_OUTPUT)
 
-        config.add_section("STATS")
-        config.set("STATS", "amount", str(len(patrons)))
+        if not result:
+            # we didn't found an existing ini, lets create a new one
+            config.add_section("TIERS")
+            config.add_section("CREATED_AT")
+            config.add_section("STATS")
+
+            for patron in patreons:
+                config.set("TIERS", patron.mail, str(patron.reward_tier))
+                config.set("CREATED_AT", patron.mail, str(patron.created_at))
+
+            config.set("STATS", "amount", str(len(patreons)))
+        else:
+            # found existing one, lets update it
+            # check if sections exists
+            if not config.has_section("TIERS"):
+                config.add_section("TIERS")
+
+            if not config.has_section("CREATED_AT"):
+                config.add_section("CREATED_AT")
+
+            if not config.has_section("STATS"):
+                config.add_section("STATS")
+
+            # update patrons in case they increased the tier
+            for patron in patreons:
+                if (
+                    config.has_option("TIERS", patron.mail)
+                    and config.get("TIERS", patron.mail) == patron.reward_tier
+                ):
+                    continue
+                else:
+                    config.set("TIERS", patron.mail, str(patron.reward_tier))
+                    config.set("CREATED_AT", patron.mail, str(patron.created_at))
+
+            config.set("STATS", "amount", str(len(config.options("TIERS"))))
 
         with open(FILE_OUTPUT, "w") as configfile:
             config.write(configfile)
@@ -82,16 +108,24 @@ class Patreon:
             for pledge in all_pledges:
 
                 declined = pledge.attribute("declined_since") != None
-                reward_tier = pledge.attribute("amount_cents")
+                reward_tier = pledge.relationship("reward").attribute(
+                    "amount_cents"
+                )  # pledge.attribute("amount_cents")
+                created_at = pledge.attribute("created_at")
                 mail = pledge.relationship("patron").attribute("email")
                 full_name = pledge.relationship("patron").attribute("full_name")
                 username = mail.split("@")[0]
+
+                print(mail, created_at)
 
                 # collect only valid patrons
                 if not declined and reward_tier > 0:
                     patreon_list.append(
                         PatreonResponse(
-                            username=username, mail=mail, reward_tier=reward_tier
+                            username=username,
+                            mail=mail,
+                            reward_tier=reward_tier,
+                            created_at=created_at,
                         )
                     )
                 else:
