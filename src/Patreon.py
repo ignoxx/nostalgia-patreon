@@ -8,7 +8,7 @@ import patreon
 from src.PatreonResponse import PatreonResponse
 
 FILE_OUTPUT = "patrons.ini"  # path "C:/Users/admin/AppData/Local/SL2_server0/server_data/patrons.ini"
-UPDATE_FREQUENCY = 1 * 60  # every 1 minute(s)
+UPDATE_FREQUENCY = 30  # every 30 seconds
 
 
 class Patreon:
@@ -24,7 +24,7 @@ class Patreon:
         while True:
             self.update_patrons_ini()
             print(
-                f"Fetched! Next refresh in {UPDATE_FREQUENCY/60} minutes ({datetime.now() + timedelta(seconds=UPDATE_FREQUENCY)})"
+                f"Fetched! Next refresh in {UPDATE_FREQUENCY} seconds ({datetime.now() + timedelta(seconds=UPDATE_FREQUENCY)})"
             )
             sleep(UPDATE_FREQUENCY)
 
