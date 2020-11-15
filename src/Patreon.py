@@ -52,9 +52,13 @@ class Patreon:
             config.add_section("TIERS")
             config.add_section("CREATED_AT")
             config.add_section("STATS")
+            config.add_section("DECLINED")
 
             for patron in patreons:
-                config.set("TIERS", patron.mail, str(patron.reward_tier))
+                if not patron.is_valid():
+                    config.set("DECLINED", patron.mail, str(patron.reward_tier))
+                else:
+                    config.set("TIERS", patron.mail, str(patron.reward_tier))
                 config.set("CREATED_AT", patron.mail, str(patron.created_at))
 
             config.set("STATS", "amount", str(len(patreons)))
@@ -70,15 +74,31 @@ class Patreon:
             if not config.has_section("STATS"):
                 config.add_section("STATS")
 
+            if not config.has_section("DECLINED"):
+                config.add_section("DECLINED")
+
             # update patrons in case they increased the tier
             for patron in patreons:
+                # check if patron is available in both sections, if yes update him
+                # if config.has_option("TIERS", patron.mail) and config.has_option("DECLINED", patron.mail):
+
+                # check
                 if (
                     config.has_option("TIERS", patron.mail)
                     and config.get("TIERS", patron.mail) == patron.reward_tier
+                    and not patron.declined
                 ):
                     continue
                 else:
-                    config.set("TIERS", patron.mail, str(patron.reward_tier))
+                    if not patron.is_valid():
+                        config.set("DECLINED", patron.mail, str(patron.reward_tier))
+                        if config.has_option("TIERS", patron.mail):
+                            config.remove_option("TIERS", patron.mail)
+                    else:
+                        config.set("TIERS", patron.mail, str(patron.reward_tier))
+                        if config.has_option("DECLINED", patron.mail):
+                            config.remove_option("DECLINED", patron.mail)
+
                     config.set("CREATED_AT", patron.mail, str(patron.created_at))
 
             config.set("STATS", "amount", str(len(config.options("TIERS"))))
@@ -108,28 +128,21 @@ class Patreon:
             for pledge in all_pledges:
 
                 declined = pledge.attribute("declined_since") != None
-                reward_tier = pledge.relationship("reward").attribute(
-                    "amount_cents"
-                )  # pledge.attribute("amount_cents")
+                reward_tier = pledge.relationship("reward").attribute("amount_cents")
                 created_at = pledge.attribute("created_at")
                 mail = pledge.relationship("patron").attribute("email")
                 full_name = pledge.relationship("patron").attribute("full_name")
                 username = mail.split("@")[0]
 
-                print(mail, created_at)
-
-                # collect only valid patrons
-                if not declined and reward_tier > 0:
-                    patreon_list.append(
-                        PatreonResponse(
-                            username=username,
-                            mail=mail,
-                            reward_tier=reward_tier,
-                            created_at=created_at,
-                        )
+                patreon_list.append(
+                    PatreonResponse(
+                        username=username,
+                        mail=mail,
+                        reward_tier=reward_tier,
+                        created_at=created_at,
+                        declined=declined,
                     )
-                else:
-                    print(f"not added: {mail} - {reward_tier}")
+                )
 
             return patreon_list
 
